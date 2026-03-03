@@ -4,7 +4,7 @@ import httpx
 from clients.api_client import APIClient
 
 
-class CreateUserRequest(TypedDict):
+class CreateUserRequestDict(TypedDict): #добавила Dict в конец
     """
     Структура тела запроса для создания пользователя.
 
@@ -28,7 +28,7 @@ class PublicUsersClient(APIClient):
     работы с HTTP-клиентом.
     """
 
-    def create_user_api(self, request: CreateUserRequest) -> httpx.Response:
+    def create_user_api(self, request: CreateUserRequestDict) -> httpx.Response: #добавила Dict
         """
         Создание нового пользователя через публичный API.
 
@@ -59,3 +59,15 @@ class PublicUsersClient(APIClient):
             url="/api/v1/users",
             json=request
         )
+
+    def create_user(self, request: CreateUserRequestDict) -> dict:
+        return self.create_user_api(request).json()
+
+
+def get_public_users_client() -> PublicUsersClient:
+    """
+    Билдер для создания публичного клиента.
+    Передаем стандартный httpx.Client, так как здесь не нужна авторизация.
+    """
+    # Мы создаем клиент и сразу указываем базовый адрес сервера
+    return PublicUsersClient(client=httpx.Client(base_url="http://localhost:8000"))
