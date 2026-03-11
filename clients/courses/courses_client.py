@@ -1,46 +1,33 @@
-from typing import TypedDict
 import httpx
 from clients.api_client import APIClient
-from clients.private_http_builder import get_private_http_client, AuthenticationUserDict
-
-class CreateCourseRequestDict(TypedDict):
-    """
-    Схема данных для создания курса.
-    :param title: Название курса.
-    :param maxScore: Максимальный балл.
-    :param minScore: Минимальный балл для прохождения.
-    :param description: Описание курса.
-    :param estimatedTime: Примерное время прохождения (например, '2 weeks').
-    :param previewFileId: ID загруженного файла обложки.
-    :param createdByUserId: ID пользователя-создателя.
-    """
-    title: str
-    maxScore: int
-    minScore: int
-    description: str
-    estimatedTime: str
-    previewFileId: str
-    createdByUserId: str
+from clients.private_http_builder import get_private_http_client, AuthenticationUserSchema
+# Импортируем наши новые схемы
+from clients.courses.courses_schema import CreateCourseRequestSchema, CreateCourseResponseSchema
 
 class CoursesClient(APIClient):
     """
     API-клиент для работы с курсами (/api/v1/courses).
     """
 
-    def create_course_api(self, request: CreateCourseRequestDict) -> httpx.Response:
+    def create_course_api(self, request: CreateCourseRequestSchema) -> httpx.Response:
         """
         Выполняет POST-запрос на создание нового курса.
         """
-        return self.post("/api/v1/courses", json=request)
+        return self.post(
+            "/api/v1/courses",
+            # Превращаем модель в словарь, заменяя snake_case на camelCase для API
+            json=request.model_dump(by_alias=True)
+        )
 
-    def create_course(self, request: CreateCourseRequestDict) -> dict:
+    def create_course(self, request: CreateCourseRequestSchema) -> CreateCourseResponseSchema:
         """
-        Создает курс и возвращает JSON-ответ от сервера.
+        Создает курс и возвращает провалидированный объект ответа.
         """
         response = self.create_course_api(request)
-        return response.json()
+        # Превращаем текст ответа (JSON) сразу в красивый объект Pydantic
+        return CreateCourseResponseSchema.model_validate_json(response.text)
 
-def get_courses_client(user: AuthenticationUserDict) -> CoursesClient:
+def get_courses_client(user: AuthenticationUserSchema) -> CoursesClient:
     """
     Билдер для создания авторизованного экземпляра CoursesClient.
     """

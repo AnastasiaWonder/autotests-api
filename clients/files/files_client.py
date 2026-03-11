@@ -1,52 +1,40 @@
-from typing import TypedDict
 import httpx
 from clients.api_client import APIClient
-from clients.private_http_builder import get_private_http_client, AuthenticationUserDict
-
-
-class CreateFileRequestDict(TypedDict):
-    """
-    Схема данных для загрузки файла.
-    :param filename: Имя файла для сохранения на сервере.
-    :param directory: Директория на сервере (например, 'courses').
-    :param upload_file: Локальный путь к файлу (например, './testdata/files/image.png').
-    """
-    filename: str
-    directory: str
-    upload_file: str
-
+from clients.private_http_builder import get_private_http_client, AuthenticationUserSchema
+# Импортируем наши новые схемы
+from clients.files.files_schema import CreateFileRequestSchema, CreateFileResponseSchema
 
 class FilesClient(APIClient):
     """
-    API-клиент для работы с файлами (/api/v1/files).
+    API-клиент для работы с файлами (/api/v1/files) на Pydantic.
     """
 
-    def create_file_api(self, request: CreateFileRequestDict) -> httpx.Response:
+    def create_file_api(self, request: CreateFileRequestSchema) -> httpx.Response:
         """
         Выполняет POST-запрос для загрузки файла.
-        Поля приведены в соответствие с требованиями сервера (upload_file и filename).
         """
-        with open(request['upload_file'], "rb") as f:
-            # Отправляем файл под ключом 'upload_file'
-            files = {"upload_file": (request['filename'], f)}
+        # Вместо request['upload_file'] теперь используем request.upload_file
+        with open(request.upload_file, "rb") as f:
+            # Отправляем файл. Pydantic-объект позволяет обращаться к полям через точку
+            files = {"upload_file": (request.filename, f)}
 
-            # Передаем 'filename' и 'directory' как обычные текстовые поля
+            # Данные формы (текстовые поля)
             data = {
-                "directory": request['directory'],
-                "filename": request['filename']
+                "directory": request.directory,
+                "filename": request.filename
             }
 
             return self.post("/api/v1/files", data=data, files=files)
 
-    def create_file(self, request: CreateFileRequestDict) -> dict:
+    def create_file(self, request: CreateFileRequestSchema) -> CreateFileResponseSchema:
         """
-        Загружает файл и возвращает JSON-ответ от сервера.
+        Загружает файл и возвращает провалидированный объект ответа.
         """
         response = self.create_file_api(request)
-        return response.json()
+        # Превращаем JSON-текст в объект CreateFileResponseSchema
+        return CreateFileResponseSchema.model_validate_json(response.text)
 
-
-def get_files_client(user: AuthenticationUserDict) -> FilesClient:
+def get_files_client(user: AuthenticationUserSchema) -> FilesClient:
     """
     Билдер для создания авторизованного экземпляра FilesClient.
     """

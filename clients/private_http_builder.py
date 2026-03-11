@@ -1,44 +1,43 @@
-from typing import TypedDict
-import httpx
 import time
+from httpx import Client
+from pydantic import BaseModel
+from clients.authentication.authentication_client import get_authentication_client
+from clients.authentication.authentication_schema import LoginRequestSchema
 
 
-class AuthenticationUserDict(TypedDict):
+# 1. Описываем схему пользователя через BaseModel
+class AuthenticationUserSchema(BaseModel):
     """Структура данных пользователя для авторизации."""
     email: str
     password: str
 
 
-def get_private_http_client(user: AuthenticationUserDict) -> httpx.Client:
+def get_private_http_client(user: AuthenticationUserSchema) -> Client:
+    """
+    Создает авторизованный HTTP-клиент, используя Pydantic-модели.
+    """
     base_url = "http://localhost:8000"
 
-    # Даем серверу секунду, чтобы он точно запомнил нового юзера
+    # Даем серверу секунду, чтобы он точно запомнил нового юзера (согласно твоей логике)
     time.sleep(1)
 
-    with httpx.Client(base_url=base_url) as client:
-        login_payload = {"email": user["email"], "password": user["password"]}
-        response = client.post("/api/v1/authentication/login", json=login_payload)
+    # 2. Используем готовый клиент аутентификации
+    auth_client = get_authentication_client()
 
-        if response.status_code in [200, 201]:
-            data = response.json()
+    # 3. Формируем запрос на логин (используем данные из объекта через точку)
+    login_request = LoginRequestSchema(
+        email=user.email,
+        password=user.password
+    )
 
-            # Достаем токен из той структуры, которую прислал твой сервер
-            # Сначала смотрим в 'token', потом внутри ищем 'accessToken'
-            token_data = data.get("token", {})
+    # 4. Выполняем вход. Метод .login() сам проверит ответ и вернет LoginResponseSchema
+    login_response = auth_client.login(login_request)
 
-            if isinstance(token_data, dict):
-                token = token_data.get("accessToken") or token_data.get("token")
-            else:
-                token = token_data  # На случай, если токен пришел строкой
+    print(f"DEBUG: Токен успешно получен через Pydantic-клиент!")
 
-            if not token:
-                raise Exception(f"Не удалось вытащить accessToken. Ответ сервера: {data}")
-
-            print(f"DEBUG: Токен успешно получен и расшифрован!")
-
-            return httpx.Client(
-                base_url=base_url,
-                headers={"Authorization": f"Bearer {token}"}
-            )
-        else:
-            raise Exception(f"Ошибка входа ({response.status_code}): {response.text}")
+    # 5. Возвращаем клиент. Доступ к токену теперь тоже максимально простой — через точку!
+    return Client(
+        base_url=base_url,
+        headers={"Authorization": f"Bearer {login_response.token.access_token}"},
+        timeout=100
+    )

@@ -1,73 +1,38 @@
-from typing import TypedDict
-import httpx
-
+from httpx import Response
 from clients.api_client import APIClient
-
-
-class CreateUserRequestDict(TypedDict): #добавила Dict в конец
-    """
-    Структура тела запроса для создания пользователя.
-
-    Поля соответствуют контракту API эндпоинта /api/v1/users.
-    """
-    email: str
-    password: str
-    firstName: str
-    lastName: str
-    middleName: str
-
+from clients.public_http_builder import get_public_http_client
+# Импортируем наши новые схемы
+from clients.users.users_schema import CreateUserRequestSchema, CreateUserResponseSchema
 
 class PublicUsersClient(APIClient):
     """
     API-клиент для публичных методов работы с пользователями.
-
-    Данный клиент предназначен для эндпоинтов, которые
-    не требуют авторизации (например, создание пользователя).
-
-    Наследуется от APIClient, который содержит общую логику
-    работы с HTTP-клиентом.
     """
 
-    def create_user_api(self, request: CreateUserRequestDict) -> httpx.Response: #добавила Dict
+    def create_user_api(self, request: CreateUserRequestSchema) -> Response:
         """
         Создание нового пользователя через публичный API.
-
-        Метод выполняет POST-запрос на эндпоинт `/api/v1/users`
-        и передаёт данные пользователя в формате JSON.
-
-        Args:
-            request (CreateUserRequest):
-                Данные пользователя для создания.
-                Ожидаемая структура:
-                {
-                    "email": str,
-                    "password": str,
-                    "firstName": str,
-                    "lastName": str,
-                    "middleName": str
-                }
-
-        Returns:
-            httpx.Response:
-                HTTP-ответ от сервера.
-                Используется в автотестах для проверки:
-                - статус-кода
-                - тела ответа
-                - заголовков
         """
+        # ВОТ ТУТ ИСПРАВЛЕНИЕ ОШИБКИ:
+        # .model_dump(by_alias=True) превращает объект Pydantic обратно в словарь,
+        # который понимает библиотека httpx, и меняет first_name на firstName.
         return self.post(
             url="/api/v1/users",
-            json=request
+            json=request.model_dump(by_alias=True)
         )
 
-    def create_user(self, request: CreateUserRequestDict) -> dict:
-        return self.create_user_api(request).json()
+    def create_user(self, request: CreateUserRequestSchema) -> CreateUserResponseSchema:
+        """
+        Метод создает пользователя и возвращает типизированный объект ответа.
+        """
+        response = self.create_user_api(request)
+        # Превращаем текст ответа в красивый объект с подсказками (через точку)
+        return CreateUserResponseSchema.model_validate_json(response.text)
 
 
 def get_public_users_client() -> PublicUsersClient:
     """
     Билдер для создания публичного клиента.
-    Передаем стандартный httpx.Client, так как здесь не нужна авторизация.
+    Используем общий public_http_builder, чтобы настройки были в одном месте.
     """
-    # Мы создаем клиент и сразу указываем базовый адрес сервера
-    return PublicUsersClient(client=httpx.Client(base_url="http://localhost:8000"))
+    return PublicUsersClient(client=get_public_http_client())

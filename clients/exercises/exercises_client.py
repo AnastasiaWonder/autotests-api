@@ -1,120 +1,59 @@
-from typing import TypedDict
 from httpx import Response
 from clients.api_client import APIClient
-from clients.private_http_builder import get_private_http_client, AuthenticationUserDict
-
-# --- Схемы данных (Контракты) ---
-
-class Exercise(TypedDict):
-    """
-    Описание структуры задания (Exercise).
-    """
-    id: str
-    title: str
-    courseId: str
-    maxScore: int
-    minScore: int
-    orderIndex: int
-    description: str
-    estimatedTime: str
-
-class GetExercisesQueryDict(TypedDict):
-    """Параметры для GET /api/v1/exercises"""
-    courseId: str  # Обязательный UUID курса
-
-class GetExercisesResponseDict(TypedDict):
-    """Структура ответа со списком упражнений."""
-    exercises: list[Exercise]
-
-class CreateExerciseResponseDict(TypedDict):
-    """Структура ответа при создании упражнения."""
-    exercise: Exercise
-
-class CreateExerciseRequestDict(TypedDict):
-    """Тело запроса для POST /api/v1/exercises"""
-    title: str               # [1, 250] characters
-    courseId: str            # uuid4
-    maxScore: int | None     # integer | null
-    minScore: int | None     # integer | null
-    orderIndex: int          # default=0
-    description: str         # >= 1 characters
-    estimatedTime: str | None # [1, 50] characters | null
-
-class UpdateExerciseRequestDict(TypedDict, total=False):
-    """Тело запроса для PATCH /api/v1/exercises/{exercise_id}"""
-    title: str | None
-    maxScore: int | None
-    minScore: int | None
-    orderIndex: int | None
-    description: str | None
-    estimatedTime: str | None
-
-# --- Реализация клиента ---
+from clients.private_http_builder import get_private_http_client, AuthenticationUserSchema
+# Импортируем наши новые схемы
+from clients.exercises.exercises_schema import (
+    CreateExerciseRequestSchema, CreateExerciseResponseSchema,
+    UpdateExerciseRequestSchema, GetExercisesResponseSchema,
+    GetExercisesQuerySchema, ExerciseSchema
+)
 
 class ExercisesClient(APIClient):
     """
-    Клиент для управления упражнениями через API.
-    Работает с эндпоинтом /api/v1/exercises.
+    Клиент для управления упражнениями через API с использованием Pydantic.
     """
 
-    # --- Методы, возвращающие Response (низкоуровневые) ---
+    # --- Низкоуровневые методы (API) ---
 
-    def get_exercises_api(self, query: GetExercisesQueryDict) -> Response:
-        """Получение списка упражнений для конкретного курса."""
-        return self.get("/api/v1/exercises", params=query)
+    def get_exercises_api(self, query: GetExercisesQuerySchema) -> Response:
+        """Получение списка упражнений. Теперь используем model_dump для параметров."""
+        return self.get("/api/v1/exercises", params=query.model_dump(by_alias=True))
 
     def get_exercise_api(self, exercise_id: str) -> Response:
-        """Получение детальной информации об упражнении по его UUID."""
         return self.get(f"/api/v1/exercises/{exercise_id}")
 
-    def create_exercise_api(self, request: CreateExerciseRequestDict) -> Response:
-        """Создание нового упражнения (запрос)."""
-        return self.post("/api/v1/exercises", json=request)
+    def create_exercise_api(self, request: CreateExerciseRequestSchema) -> Response:
+        return self.post("/api/v1/exercises", json=request.model_dump(by_alias=True))
 
-    def update_exercise_api(self, exercise_id: str, request: UpdateExerciseRequestDict) -> Response:
-        """Частичное обновление данных упражнения."""
-        return self.patch(f"/api/v1/exercises/{exercise_id}", json=request)
+    def update_exercise_api(self, exercise_id: str, request: UpdateExerciseRequestSchema) -> Response:
+        return self.patch(f"/api/v1/exercises/{exercise_id}", json=request.model_dump(by_alias=True))
 
     def delete_exercise_api(self, exercise_id: str) -> Response:
-        """Удаление упражнения по его ID."""
         return self.delete(f"/api/v1/exercises/{exercise_id}")
 
-    # --- Методы, возвращающие JSON (высокоуровневые, требуемые по ДЗ) ---
+    # --- Высокоуровневые методы (Business logic) ---
 
-    def get_exercises(self, query: GetExercisesQueryDict) -> GetExercisesResponseDict:
-        """
-        Метод получает список упражнений и возвращает JSON.
-        """
+    def get_exercises(self, query: GetExercisesQuerySchema) -> GetExercisesResponseSchema:
         response = self.get_exercises_api(query)
-        return response.json()
+        return GetExercisesResponseSchema.model_validate_json(response.text)
 
-    def get_exercise(self, exercise_id: str) -> dict:
-        """
-        Метод получает данные одного упражнения и возвращает JSON.
-        """
+    def get_exercise(self, exercise_id: str) -> ExerciseSchema:
+        # Теперь возвращаем конкретную схему упражнения, обернув ответ
         response = self.get_exercise_api(exercise_id)
-        return response.json()
+        # Если в ответе от сервера ключ "exercise", убедись, как выглядит JSON.
+        # Обычно GET возвращает сразу объект упражнения.
+        return ExerciseSchema.model_validate_json(response.text)
 
-    def create_exercise(self, request: CreateExerciseRequestDict) -> CreateExerciseResponseDict:
-        """
-        Метод создает упражнение и возвращает JSON-ответ.
-        """
+    def create_exercise(self, request: CreateExerciseRequestSchema) -> CreateExerciseResponseSchema:
         response = self.create_exercise_api(request)
-        return response.json()
+        return CreateExerciseResponseSchema.model_validate_json(response.text)
 
-    def update_exercise(self, exercise_id: str, request: UpdateExerciseRequestDict) -> dict:
-        """
-        Метод обновляет упражнение и возвращает JSON.
-        """
+    def update_exercise(self, exercise_id: str, request: UpdateExerciseRequestSchema) -> ExerciseSchema:
         response = self.update_exercise_api(exercise_id, request)
-        return response.json()
+        return ExerciseSchema.model_validate_json(response.text)
 
 # --- Билдер ---
 
-def get_exercises_client(user: AuthenticationUserDict) -> ExercisesClient:
-    """
-    Функция создаёт экземпляр ExercisesClient с настроенным приватным HTTP-клиентом.
-    :param user: Словарь с данными для авторизации (email, password).
-    :return: Настроенный ExercisesClient.
-    """
+def get_exercises_client(user: AuthenticationUserSchema) -> ExercisesClient:
+    """Создаёт экземпляр клиента, принимая Pydantic-модель пользователя."""
     return ExercisesClient(client=get_private_http_client(user))
