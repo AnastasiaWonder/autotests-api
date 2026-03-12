@@ -3,7 +3,7 @@ from clients.files.files_schema import FileSchema
 from clients.users.users_schema import UserSchema
 
 class CourseSchema(BaseModel):
-    """Схема полной информации о курсе (то, что возвращает сервер)"""
+    """Описание структуры курса."""
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
@@ -15,8 +15,13 @@ class CourseSchema(BaseModel):
     estimated_time: str = Field(alias="estimatedTime")
     created_by_user: UserSchema = Field(alias="createdByUser")
 
+class GetCoursesQuerySchema(BaseModel):
+    """Структура запроса на получение списка курсов."""
+    model_config = ConfigDict(populate_by_name=True)
+    user_id: str = Field(alias="userId")
+
 class CreateCourseRequestSchema(BaseModel):
-    """Схема того, что МЫ отправляем на сервер для создания курса"""
+    """Структура запроса на создание курса."""
     model_config = ConfigDict(populate_by_name=True)
 
     title: str
@@ -28,5 +33,15 @@ class CreateCourseRequestSchema(BaseModel):
     created_by_user_id: str = Field(alias="createdByUserId")
 
 class CreateCourseResponseSchema(BaseModel):
-    """Схема ответа сервера при создании курса"""
+    """Структура ответа при создании курса."""
     course: CourseSchema
+
+class UpdateCourseRequestSchema(BaseModel):
+    """Структура запроса на обновление курса."""
+    model_config = ConfigDict(populate_by_name=True)
+
+    title: str | None = None
+    max_score: int | None = Field(alias="maxScore", default=None)
+    min_score: int | None = Field(alias="minScore", default=None)
+    description: str | None = None
+    estimated_time: str | None = Field(alias="estimatedTime", default=None)
