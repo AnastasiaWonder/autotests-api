@@ -1,30 +1,54 @@
 import httpx
+# Импортируем наш завод данных
+from tools.fakers import fake
 
-login_payload = {
-    "email": "user@example.com",
-    "password": "string"
-}
-
-login_response = httpx.post(
-    "http://localhost:8000/api/v1/authentication/login",
-    json=login_payload
-)
-
-print("Login status code:", login_response.status_code)
-
-login_response_data = login_response.json()
-access_token = login_response_data["token"]["accessToken"]
+BASE_URL = "http://localhost:8000"
 
 
-headers = {
-    "Authorization": f"Bearer {access_token}"
-}
+def create_and_get_me():
+    # 1. СОЗДАЕМ ПОЛЬЗОВАТЕЛЯ (чтобы нам было под кем заходить)
+    user_payload = {
+        "email": fake.email(),
+        "password": fake.password(),
+        "lastName": fake.last_name(),
+        "firstName": fake.first_name(),
+        "middleName": "HttpxTest"
+    }
 
-user_me_response = httpx.get(
-    "http://localhost:8000/api/v1/users/me",
-    headers=headers
-)
+    create_res = httpx.post(f"{BASE_URL}/api/v1/users", json=user_payload)
+    create_res.raise_for_status()
+    print(f"Пользователь создан: {user_payload['email']}")
 
-print("User me status code:", user_me_response.status_code)
-print("User data:")
-print(user_me_response.json())
+    # 2. ЛОГИН
+    login_payload = {
+        "email": user_payload["email"],
+        "password": user_payload["password"]
+    }
+
+    login_response = httpx.post(
+        f"{BASE_URL}/api/v1/authentication/login",
+        json=login_payload
+    )
+    login_response.raise_for_status()
+
+    access_token = login_response.json()["token"]["accessToken"]
+    print("Токен получен.")
+
+    # 3. ПОЛУЧАЕМ ДАННЫЕ О СЕБЕ (/me)
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    user_me_response = httpx.get(
+        f"{BASE_URL}/api/v1/users/me",
+        headers=headers
+    )
+    user_me_response.raise_for_status()
+
+    print(f"Статус /me: {user_me_response.status_code}")
+    print("Данные из профиля:")
+    print(user_me_response.json())
+
+
+if __name__ == "__main__":
+    create_and_get_me()

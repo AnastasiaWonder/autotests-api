@@ -1,56 +1,42 @@
-from pydantic import BaseModel, Field, EmailStr
+"""
+Демонстрационный скрипт работы с Pydantic-моделями пользователя.
+Показывает автоматическую генерацию данных при создании запроса.
+"""
+from pydantic import Field, EmailStr, ConfigDict
+# 1. Подключаем наш генератор данных
+from tools.fakers import fake
+from clients.users.users_schema import UserSchema, CreateUserResponseSchema, CreateUserRequestSchema
 
-class UserSchema(BaseModel):
-    """
-    Модель данных пользователя, используемая в ответах API.
-    Содержит полную информацию о пользователе, включая его ID.
-    """
-    id: str = Field(description="Уникальный идентификатор пользователя")
-    email: EmailStr = Field(description="Электронная почта пользователя")
-    last_name: str = Field(alias="lastName", description="Фамилия")
-    first_name: str = Field(alias="firstName", description="Имя")
-    middle_name: str = Field(alias="middleName", description="Отчество")
-
-    # Настройка для работы с алиасами
-    model_config = {
-        "populate_by_name": True
-    }
-
-class CreateUserRequestSchema(BaseModel):
-    """
-    Схема запроса на создание нового пользователя (POST /api/v1/users).
-    Не содержит id, так как он генерируется сервером.
-    """
-    email: EmailStr = Field(description="Электронная почта для регистрации")
-    password: str = Field(description="Пароль пользователя")
-    last_name: str = Field(alias="lastName", description="Фамилия")
-    first_name: str = Field(alias="firstName", description="Имя")
-    middle_name: str = Field(alias="middleName", description="Отчество")
-
-    model_config = {
-        "populate_by_name": True
-    }
-
-class CreateUserResponseSchema(BaseModel):
-    """
-    Схема ответа сервера после успешного создания пользователя.
-    Оборачивает объект UserSchema в ключ 'user'.
-    """
-    user: UserSchema = Field(description="Объект с данными созданного пользователя")
-
+# Примечание: Мы больше не описываем классы здесь,
+# так как они уже есть в clients/users/users_schema.py.
+# Это делает код чище и профессиональнее.
 
 if __name__ == "__main__":
-    # Пример данных от сервера (JSON)
-    raw_data = {
+    print("--- ТЕСТИРУЕМ АВТОМАТИЧЕСКУЮ ГЕНЕРАЦИЮ ---")
+
+    # 2. Создаем запрос. Благодаря default_factory, нам не нужно ничего передавать!
+    request_data = CreateUserRequestSchema()
+
+    print(f"Сгенерированный Email: {request_data.email}")
+    print(f"Сгенерированное Имя: {request_data.first_name}")
+    print(f"Сгенерированный Пароль: {request_data.password}")
+
+    print("\n--- ИМИТАЦИЯ ОТВЕТА ОТ СЕРВЕРА ---")
+
+    # 3. Допустим, сервер ответил нам JSON-ом, используя данные из нашего запроса
+    # и добавив сгенерированный ID.
+    raw_response = {
         "user": {
-            "id": "123-uuid",
-            "email": "nastya@example.com",
-            "lastName": "Nazarenko",
-            "firstName": "Anastasia",
-            "middleName": "Testing"
+            "id": str(fake.uuid4()),  # Имитируем ID от сервера
+            "email": request_data.email,
+            "lastName": request_data.last_name,
+            "firstName": request_data.first_name,
+            "middleName": request_data.middle_name
         }
     }
 
-    # Пробуем распаковать данные в модель
-    response = CreateUserResponseSchema(**raw_data)
-    print(f"Успешно создали пользователя: {response.user.first_name}")
+    # 4. Пробуем распаковать данные в модель ответа
+    response = CreateUserResponseSchema(**raw_response)
+
+    print(f"Успешно провалидировали ответ для пользователя: {response.user.first_name}")
+    print(f"ID пользователя в системе: {response.user.id}")

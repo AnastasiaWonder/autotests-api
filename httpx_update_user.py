@@ -1,20 +1,19 @@
 import httpx
-import time
-
+# 1. Вместо import time импортируем наш fake
+from tools.fakers import fake
 
 BASE_URL = "http://localhost:8000"
 
 
-def get_random_email() -> str:
-    return f"user.{time.time()}@example.com"
-
+# 2. Локальную функцию get_random_email() мы удалили
 
 def create_user():
+    # 3. Теперь используем fake.email()
     payload = {
-        "email": get_random_email(),
-        "password": "string",
-        "lastName": "Initial",
-        "firstName": "User",
+        "email": fake.email(),
+        "password": "password123",
+        "lastName": fake.last_name(),  # Раз уж гуляем, добавим и сюда фейки!
+        "firstName": fake.first_name(),
         "middleName": "Test"
     }
 
@@ -22,8 +21,8 @@ def create_user():
     response.raise_for_status()
 
     print("Create user status code:", response.status_code)
-    print("Create user response:", response.json())
 
+    # Возвращаем данные для логина
     return payload["email"], payload["password"], response.json()["user"]["id"]
 
 
@@ -39,17 +38,16 @@ def login_user(email: str, password: str) -> str:
     )
     response.raise_for_status()
 
-    print("Login status code:", response.status_code)
-    print("Login response:", response.json())
-
+    print("Login success! Token received.")
     return response.json()["token"]["accessToken"]
 
 
 def update_user(user_id: str, access_token: str):
+    # 4. И здесь меняем на fake.email() и другие методы
     payload = {
-        "email": get_random_email(),
-        "lastName": "Updated",
-        "firstName": "User",
+        "email": fake.email(),
+        "lastName": fake.last_name(),
+        "firstName": fake.first_name(),
         "middleName": "HTTPX"
     }
 
@@ -65,7 +63,7 @@ def update_user(user_id: str, access_token: str):
     response.raise_for_status()
 
     print("Update user status code:", response.status_code)
-    print("Updated user data:", response.json())
+    print("Updated user data:", response.json()["user"]["email"])
 
 
 def main():
