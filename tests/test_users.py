@@ -6,6 +6,8 @@ from clients.users.public_users_client import PublicUsersClient # если он 
 from clients.users.private_users_client import PrivateUsersClient # <--- ТЕПЕРЬ ОН ТУТ
 from clients.users.users_schema import GetUserResponseSchema
 from tests.conftest import UserFixture
+from clients.users.users_schema import CreateUserRequestSchema
+from tools.fakers import fake
 
 # Импортируем наши "проверялки"
 from tools.assertions.base import assert_status_code
@@ -33,3 +35,28 @@ def test_get_user_me(private_users_client: PrivateUsersClient, function_user: Us
 
     # 5. Валидируем JSON-схему (строгая проверка типов данных)
     validate_json_schema(response.json(), response_data.model_json_schema())
+
+@pytest.mark.users
+@pytest.mark.parametrize(
+        "email",
+        ["mail.ru", "gmail.com", "example.com"]
+    )
+def test_create_user(email: str, public_users_client: PublicUsersClient):
+        """
+        Тест проверяет создание пользователя с разными доменами почты.
+        """
+        # 1. Генерируем email с нужным доменом (mail.ru, потом gmail.com и т.д.)
+        generated_email = fake.email(domain=email)
+
+        # 2. Формируем тело запроса (пароль и имя пусть будут случайными)
+        request = CreateUserRequestSchema(
+            email=generated_email,
+            password=fake.password(),
+            name=fake.first_name()
+        )
+
+        # 3. Отправляем запрос в API на создание пользователя
+        response = public_users_client.create_user(request)
+
+        # 4. Проверяем, что email в ответе совпадает с тем, что мы сгенерировали
+        assert response.user.email == generated_email
